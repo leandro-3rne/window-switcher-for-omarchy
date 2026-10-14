@@ -24,6 +24,7 @@ Item {
   readonly property string iconDirectory: Quickshell.env("HOME") + "/.config/omarchy/plugins/" + pluginId + "/icons/"
   readonly property string appIconDirectory: Quickshell.env("HOME") + "/.local/share/icons/hicolor/scalable/apps/"
   readonly property string launcherIconDirectory: Quickshell.env("HOME") + "/.local/share/icons/hicolor/256x256/apps/"
+  readonly property string flatpakIconDirectory: Quickshell.env("HOME") + "/.local/share/flatpak/exports/share/icons/hicolor/128x128/apps/"
 
   // Match Omarchy's weather/audio/etc. popout surfaces. Selection colors
   // still come from the menu tokens used by keyboard-driven lists.
@@ -113,6 +114,8 @@ Item {
 
   function desktopIconForApp(appId) {
     var id = String(appId || "").toLowerCase()
+    if (id === "zotero" || id === "org.zotero.zotero")
+      return (Quickshell.env("HOME") || "") + "/.local/opt/zotero/icons/icon128.png"
     // Native Proton clients expose window app IDs that do not always match
     // their desktop-file IDs, so DesktopEntries.heuristicLookup() can miss
     // them. Keep explicit aliases beside the Chromium-host icon mapping.
@@ -141,6 +144,24 @@ Item {
     return entry
       ? Quickshell.iconPath(entry.icon)
       : Quickshell.iconPath("application-x-executable")
+  }
+
+  function craftFlatpakIconForApp(appId) {
+    var id = String(appId || "").toLowerCase()
+    var craftApps = {
+      "ai.storyteller.artcraft-launcher": true,
+      "ai.storyteller.photocraft": true,
+      "ai.storyteller.filmcraft": true,
+      "ai.storyteller.lightcraft": true,
+      "ai.storyteller.pdfcraft": true,
+      "ai.storyteller.wordcraft": true,
+      "ai.storyteller.deckcraft": true,
+      "ai.storyteller.gridcraft": true,
+      "ai.storyteller.soundcraft": true
+    }
+    // Craft apps publish their icons with their Flatpak exports. Keep the
+    // allowlist explicit so a client-controlled app ID cannot become a path.
+    return craftApps[id] ? root.flatpakIconDirectory + id + ".png" : ""
   }
 
   function appNameForWindow(appId, title) {
@@ -174,7 +195,18 @@ Item {
       return known[chromium[1]] || host.split(".")[0]
     }
     var nativeNames = {
-      "org.omarchy.agent": "Codex",
+      "ai.storyteller.artcraft-launcher": "ArtCraft Launcher",
+      "ai.storyteller.photocraft": "PhotoCraft",
+      "ai.storyteller.filmcraft": "FilmCraft",
+      "ai.storyteller.lightcraft": "LightCraft",
+      "ai.storyteller.pdfcraft": "PdfCraft",
+      "ai.storyteller.wordcraft": "WordCraft",
+      "ai.storyteller.deckcraft": "DeckCraft",
+      "ai.storyteller.gridcraft": "GridCraft",
+      "ai.storyteller.soundcraft": "SoundCraft",
+      "org.omarchy.agent": "OpenCode",
+      "zotero": "Zotero",
+      "org.zotero.zotero": "Zotero",
       "proton mail": "Proton Mail",
       "proton-mail": "Proton Mail",
       "proton pass": "Proton Pass",
@@ -194,6 +226,7 @@ Item {
   function displayTitleForWindow(appId, title) {
     var id = String(appId || "").toLowerCase()
     var value = String(title || "")
+    if (id === "zotero" || id === "org.zotero.zotero") return "Zotero"
     if (id.indexOf("music.apple.com") !== -1) return "Apple Music"
     if (id.match(/^chrome-.+__.*-default$/))
       value = value.replace(/\s+[—–-]\s+Web App$/i, "")
@@ -611,7 +644,7 @@ Item {
                     sourceSize.height: height * Screen.devicePixelRatio
                     smooth: true
                     source: root.desktopIconForApp(tile.appId)
-                    visible: webIcon.status !== Image.Ready
+                    visible: webIcon.status !== Image.Ready && craftIcon.status !== Image.Ready
                   }
 
                   Image {
@@ -626,6 +659,21 @@ Item {
                     cache: true
                     smooth: true
                     source: root.webIconForApp(tile.appId)
+                    visible: status === Image.Ready
+                  }
+
+                  Image {
+                    id: craftIcon
+                    anchors.centerIn: parent
+                    width: Style.font.iconLarge
+                    height: Style.font.iconLarge
+                    fillMode: Image.PreserveAspectFit
+                    sourceSize.width: width * Screen.devicePixelRatio
+                    sourceSize.height: height * Screen.devicePixelRatio
+                    asynchronous: true
+                    cache: true
+                    smooth: true
+                    source: root.craftFlatpakIconForApp(tile.appId)
                     visible: status === Image.Ready
                   }
                 }

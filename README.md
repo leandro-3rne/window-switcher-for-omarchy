@@ -77,6 +77,17 @@ hyprctl configerrors
 - With no windows open, release Alt, press Escape, or repeat either overview
   shortcut to close the empty state.
 - Use the arrow keys or mouse when the overview is open.
+- The user `Super+Shift+Arrow` binding swaps with a visible neighbour on the
+  same monitor first. A swap involving fullscreen exits fullscreen on both
+  windows; when no local neighbour exists, it can swap across monitors.
+- `Super+Shift+Ctrl+Arrow` moves only the active window to the nearest monitor
+  in that direction, even when either monitor has other windows open.
+- `Super+Shift+Ctrl+number` moves every window on the active workspace into the
+  numbered workspace and follows the destination. If the target is empty, the
+  workspace itself moves so its tiled layout is preserved; occupied targets
+  receive the moved windows.
+- Moving a window into a workspace that has a fullscreen window clears that
+  fullscreen state first; this also applies when showing Apple Music.
 - Press Escape or click the dimmed background to cancel.
 - The empty-scratchpad message closes on Escape, another `Super+S`, a
   background click, or a workspace switch. It stays active while another menu
