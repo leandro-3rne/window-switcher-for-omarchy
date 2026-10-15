@@ -579,6 +579,7 @@ Item {
               anchors.rightMargin: Style.spacing.md
               anchors.verticalCenter: parent.verticalCenter
               text: "Select window…"
+              textFormat: Text.PlainText
               color: root.foreground
               opacity: 0.58
               font.family: Style.font.menuFamily
@@ -591,6 +592,7 @@ Item {
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
               text: windowModel.count + " windows"
+              textFormat: Text.PlainText
               color: root.foreground
               opacity: 0.45
               font.family: Style.font.menuFamily
@@ -685,6 +687,7 @@ Item {
                   Text {
                     Layout.fillWidth: true
                     text: tile.title
+                    textFormat: Text.PlainText
                     color: tile.index === root.selectedIndex ? root.selectedText : root.foreground
                     font.family: Style.font.menuFamily
                     font.pixelSize: Style.font.title
@@ -696,6 +699,7 @@ Item {
                   Text {
                     Layout.fillWidth: true
                     text: tile.appName + "  ·  Workspace " + tile.workspace
+                    textFormat: Text.PlainText
                     visible: text !== ""
                     color: tile.index === root.selectedIndex ? root.selectedText : root.foreground
                     opacity: 0.65
@@ -719,6 +723,7 @@ Item {
               anchors.centerIn: parent
               visible: windowModel.count === 0
               text: "No open windows"
+              textFormat: Text.PlainText
               color: root.foreground
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.body
@@ -730,6 +735,7 @@ Item {
           anchors.centerIn: parent
           visible: root.messageMode
           text: root.messageText
+          textFormat: Text.PlainText
           color: root.foreground
           font.family: Style.font.menuFamily
           font.pixelSize: Style.font.body

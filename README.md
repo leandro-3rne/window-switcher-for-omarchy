@@ -23,7 +23,7 @@ Windows Alt-Tab switcher and built directly for the Omarchy Quattro shell.
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/leandro-3rne/omarchy-window-switcher.git --enable
+omarchy plugin add https://github.com/leandro-3rne/window-switcher-for-omarchy.git --enable
 ```
 
 Add the following to `~/.config/hypr/bindings.lua`:
