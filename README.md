@@ -14,6 +14,8 @@ Windows Alt-Tab switcher and built directly for the Omarchy Quattro shell.
 - Uses Omarchy's current popup and menu colors automatically.
 - Resolves icons through the desktop entry database and local web-app icons
   without making network requests; GitHub reuses the icon from the Apps menu.
+- Maps ArtCraft app IDs and window classes to their AppImage hicolor icons, with
+  Flatpak-export icons supported as a fallback; the launcher uses its own icon too.
 - Codex CLI windows (`org.openai.codex`) use the `kitty` name and icon while
   retaining their dedicated app ID for launch/focus shortcuts.
 
@@ -116,6 +118,13 @@ unknown apps fall back to their desktop entry icon.
 The switcher never derives a URL from a client's app ID and never performs
 network requests. This keeps forged Wayland client metadata from turning the
 long-running shell into an HTTP client.
+
+## ArtCraft icons
+
+ArtCraft AppImages install their icons into the user's hicolor icon theme. The
+switcher maps the launcher and known suite app IDs/window classes to those local
+icons. If an app is installed as a Flatpak instead, its exported icon is used
+when available; unknown app IDs continue to use desktop-entry fallbacks.
 
 ## Remove
 

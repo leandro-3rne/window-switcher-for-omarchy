@@ -25,6 +25,7 @@ Item {
   readonly property string appIconDirectory: Quickshell.env("HOME") + "/.local/share/icons/hicolor/scalable/apps/"
   readonly property string launcherIconDirectory: Quickshell.env("HOME") + "/.local/share/icons/hicolor/256x256/apps/"
   readonly property string flatpakIconDirectory: Quickshell.env("HOME") + "/.local/share/flatpak/exports/share/icons/hicolor/128x128/apps/"
+  readonly property string hicolorIconDirectory: Quickshell.env("HOME") + "/.local/share/icons/hicolor/"
 
   // Match Omarchy's weather/audio/etc. popout surfaces. Selection colors
   // still come from the menu tokens used by keyboard-driven lists.
@@ -141,33 +142,83 @@ Item {
       return Quickshell.iconPath(localIcons[id])
     }
 
-    var entry = DesktopEntries.heuristicLookup(appId)
+    var craftId = root.craftDesktopIdForApp(id)
+    var entry = DesktopEntries.heuristicLookup(craftId || appId)
     return entry
       ? Quickshell.iconPath(entry.icon)
       : Quickshell.iconPath("application-x-executable")
   }
 
-  function craftFlatpakIconForApp(appId) {
+  function craftDesktopIdForApp(appId) {
     var id = String(appId || "").toLowerCase()
-    var craftApps = {
-      "ai.storyteller.artcraft-launcher": true,
-      "ai.storyteller.photocraft": true,
-      "ai.storyteller.filmcraft": true,
-      "ai.storyteller.lightcraft": true,
-      "ai.storyteller.pdfcraft": true,
-      "ai.storyteller.wordcraft": true,
-      "ai.storyteller.deckcraft": true,
-      "ai.storyteller.gridcraft": true,
-      "ai.storyteller.soundcraft": true
+    var craftIds = {
+      "ai.storyteller.artcraft-launcher": "ai.storyteller.artcraft-launcher",
+      "artcraft-launcher": "ai.storyteller.artcraft-launcher",
+      "ai.storyteller.photocraft": "ai.storyteller.photocraft",
+      "photocraft": "ai.storyteller.photocraft",
+      "ai.storyteller.filmcraft": "ai.storyteller.filmcraft",
+      "filmcraft": "ai.storyteller.filmcraft",
+      "ai.storyteller.lightcraft": "ai.storyteller.lightcraft",
+      "lightcraft": "ai.storyteller.lightcraft",
+      "ai.storyteller.pdfcraft": "ai.storyteller.pdfcraft",
+      "pdfcraft": "ai.storyteller.pdfcraft",
+      "ai.storyteller.wordcraft": "ai.storyteller.wordcraft",
+      "wordcraft": "ai.storyteller.wordcraft",
+      "ai.storyteller.deckcraft": "ai.storyteller.deckcraft",
+      "deckcraft": "ai.storyteller.deckcraft",
+      "ai.storyteller.gridcraft": "ai.storyteller.gridcraft",
+      "gridcraft": "ai.storyteller.gridcraft",
+      "ai.storyteller.soundcraft": "ai.storyteller.soundcraft",
+      "soundcraft": "ai.storyteller.soundcraft",
+      "ai.storyteller.vectorcraft": "ai.storyteller.vectorcraft",
+      "vectorcraft": "ai.storyteller.vectorcraft",
+      "ai.storyteller.designcraft": "ai.storyteller.designcraft",
+      "designcraft": "ai.storyteller.designcraft",
+      "ai.storyteller.effectcraft": "ai.storyteller.effectcraft",
+      "effectcraft": "ai.storyteller.effectcraft",
+      "ai.storyteller.figcraft": "ai.storyteller.figcraft",
+      "figcraft": "ai.storyteller.figcraft",
+      "ai.storyteller.cadcraft": "ai.storyteller.cadcraft",
+      "cadcraft": "ai.storyteller.cadcraft"
     }
+    return craftIds[id] || ""
+  }
+
+  function craftThemeIconForApp(appId) {
+    var id = root.craftDesktopIdForApp(appId)
+    if (!id) return ""
+    var size = id === "ai.storyteller.artcraft-launcher" ? "256x256" : "128x128"
+    return root.hicolorIconDirectory + size + "/apps/" + id + ".png"
+  }
+
+  function craftFlatpakIconForApp(appId) {
     // Craft apps publish their icons with their Flatpak exports. Keep the
-    // allowlist explicit so a client-controlled app ID cannot become a path.
-    return craftApps[id] ? root.flatpakIconDirectory + id + ".png" : ""
+    // alias list explicit so client-controlled app IDs cannot become paths.
+    var id = root.craftDesktopIdForApp(appId)
+    return id ? root.flatpakIconDirectory + id + ".png" : ""
   }
 
   function appNameForWindow(appId, title) {
     var id = String(appId || "")
     var lower = id.toLowerCase()
+    var craftId = root.craftDesktopIdForApp(lower)
+    var craftNames = {
+      "ai.storyteller.artcraft-launcher": "ArtCraft Launcher",
+      "ai.storyteller.photocraft": "PhotoCraft",
+      "ai.storyteller.filmcraft": "FilmCraft",
+      "ai.storyteller.lightcraft": "LightCraft",
+      "ai.storyteller.pdfcraft": "PdfCraft",
+      "ai.storyteller.wordcraft": "WordCraft",
+      "ai.storyteller.deckcraft": "DeckCraft",
+      "ai.storyteller.gridcraft": "GridCraft",
+      "ai.storyteller.soundcraft": "SoundCraft",
+      "ai.storyteller.vectorcraft": "VectorCraft",
+      "ai.storyteller.designcraft": "DesignCraft",
+      "ai.storyteller.effectcraft": "EffectCraft",
+      "ai.storyteller.figcraft": "FigCraft",
+      "ai.storyteller.cadcraft": "CADCraft"
+    }
+    if (craftId) return craftNames[craftId]
     var chromium = lower.match(/^chrome-(.+)__.*-default$/)
     if (chromium) {
       var host = chromium[1].replace(/^www\./, "")
@@ -648,7 +699,9 @@ Item {
                     sourceSize.height: height * Screen.devicePixelRatio
                     smooth: true
                     source: root.desktopIconForApp(tile.appId)
-                    visible: webIcon.status !== Image.Ready && craftIcon.status !== Image.Ready
+                    visible: webIcon.status !== Image.Ready
+                      && craftIcon.status !== Image.Ready
+                      && craftHicolorIcon.status !== Image.Ready
                   }
 
                   Image {
@@ -678,6 +731,21 @@ Item {
                     cache: true
                     smooth: true
                     source: root.craftFlatpakIconForApp(tile.appId)
+                    visible: status === Image.Ready
+                  }
+
+                  Image {
+                    id: craftHicolorIcon
+                    anchors.centerIn: parent
+                    width: Style.font.iconLarge
+                    height: Style.font.iconLarge
+                    fillMode: Image.PreserveAspectFit
+                    sourceSize.width: width * Screen.devicePixelRatio
+                    sourceSize.height: height * Screen.devicePixelRatio
+                    asynchronous: true
+                    cache: true
+                    smooth: true
+                    source: root.craftThemeIconForApp(tile.appId)
                     visible: status === Image.Ready
                   }
                 }
