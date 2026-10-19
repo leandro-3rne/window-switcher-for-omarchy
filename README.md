@@ -14,6 +14,8 @@ Windows Alt-Tab switcher and built directly for the Omarchy Quattro shell.
 - Uses Omarchy's current popup and menu colors automatically.
 - Resolves icons through the desktop entry database and local web-app icons
   without making network requests; GitHub reuses the icon from the Apps menu.
+- Codex CLI windows (`org.openai.codex`) use the `kitty` name and icon while
+  retaining their dedicated app ID for launch/focus shortcuts.
 
 ## Requirements
 
