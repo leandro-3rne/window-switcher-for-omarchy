@@ -15,6 +15,8 @@ Item {
   property bool messageMode: false
   property string messageText: ""
   property int selectedIndex: 0
+  property bool overviewCapsLockMode: false
+  property bool activateOnAltRelease: false
   // Set only when Alt-Tab is entered from the empty Scratchpad surface. An
   // Apple Music row selected from that overview must be placed in the
   // Scratchpad, because the surface itself is not a Hyprland workspace.
@@ -26,6 +28,24 @@ Item {
   readonly property string launcherIconDirectory: Quickshell.env("HOME") + "/.local/share/icons/hicolor/256x256/apps/"
   readonly property string flatpakIconDirectory: Quickshell.env("HOME") + "/.local/share/flatpak/exports/share/icons/hicolor/128x128/apps/"
   readonly property string hicolorIconDirectory: Quickshell.env("HOME") + "/.local/share/icons/hicolor/"
+  readonly property string normalKeyboardMap: Quickshell.env("HOME") + "/.config/hypr/capslock-super.xkb"
+  readonly property string overviewKeyboardMap: Quickshell.env("HOME") + "/.config/hypr/capslock-overview.xkb"
+
+  onOpenedChanged: root.syncOverviewCapsLockMode()
+  onMessageModeChanged: root.syncOverviewCapsLockMode()
+  Component.onDestruction: root.setOverviewCapsLockMode(false)
+
+  function setOverviewCapsLockMode(enabled) {
+    if (overviewCapsLockMode === enabled) return
+    overviewCapsLockMode = enabled
+    var keyboardMap = enabled ? overviewKeyboardMap : normalKeyboardMap
+    var luaPath = JSON.stringify(keyboardMap)
+    Quickshell.execDetached(["hyprctl", "eval", "hl.config({ input = { kb_file = " + luaPath + " } })"])
+  }
+
+  function syncOverviewCapsLockMode() {
+    setOverviewCapsLockMode(opened && !messageMode)
+  }
 
   // Match Omarchy's weather/audio/etc. popout surfaces. Selection colors
   // still come from the menu tokens used by keyboard-driven lists.
@@ -42,7 +62,7 @@ Item {
   readonly property int columnCount: Math.max(1, Math.min(4, maxColumnsForScreen, Math.ceil(Math.sqrt(windowModel.count))))
   readonly property int rowCount: Math.max(1, Math.ceil(windowModel.count / columnCount))
   readonly property int tileWidth: Style.space(280)
-  readonly property int tileHeight: Style.space(72)
+  readonly property int tileHeight: Style.space(196)
 
   function workspaceForWindow(win) {
     var workspace = win ? win.workspace : null
@@ -192,8 +212,7 @@ Item {
   }
 
   function craftFlatpakIconForApp(appId) {
-    // Craft apps publish their icons with their Flatpak exports. Keep the
-    // alias list explicit so client-controlled app IDs cannot become paths.
+    // Use only known suite IDs when building a path from window metadata.
     var id = root.craftDesktopIdForApp(appId)
     return id ? root.flatpakIconDirectory + id + ".png" : ""
   }
@@ -201,24 +220,6 @@ Item {
   function appNameForWindow(appId, title) {
     var id = String(appId || "")
     var lower = id.toLowerCase()
-    var craftId = root.craftDesktopIdForApp(lower)
-    var craftNames = {
-      "ai.storyteller.artcraft-launcher": "ArtCraft Launcher",
-      "ai.storyteller.photocraft": "PhotoCraft",
-      "ai.storyteller.filmcraft": "FilmCraft",
-      "ai.storyteller.lightcraft": "LightCraft",
-      "ai.storyteller.pdfcraft": "PdfCraft",
-      "ai.storyteller.wordcraft": "WordCraft",
-      "ai.storyteller.deckcraft": "DeckCraft",
-      "ai.storyteller.gridcraft": "GridCraft",
-      "ai.storyteller.soundcraft": "SoundCraft",
-      "ai.storyteller.vectorcraft": "VectorCraft",
-      "ai.storyteller.designcraft": "DesignCraft",
-      "ai.storyteller.effectcraft": "EffectCraft",
-      "ai.storyteller.figcraft": "FigCraft",
-      "ai.storyteller.cadcraft": "CADCraft"
-    }
-    if (craftId) return craftNames[craftId]
     var chromium = lower.match(/^chrome-(.+)__.*-default$/)
     if (chromium) {
       var host = chromium[1].replace(/^www\./, "")
@@ -246,8 +247,27 @@ Item {
       }
       return known[chromium[1]] || host.split(".")[0]
     }
+    var craftId = root.craftDesktopIdForApp(lower)
+    var craftNames = {
+      "ai.storyteller.artcraft-launcher": "ArtCraft Launcher",
+      "ai.storyteller.photocraft": "PhotoCraft",
+      "ai.storyteller.filmcraft": "FilmCraft",
+      "ai.storyteller.lightcraft": "LightCraft",
+      "ai.storyteller.pdfcraft": "PdfCraft",
+      "ai.storyteller.wordcraft": "WordCraft",
+      "ai.storyteller.deckcraft": "DeckCraft",
+      "ai.storyteller.gridcraft": "GridCraft",
+      "ai.storyteller.soundcraft": "SoundCraft",
+      "ai.storyteller.vectorcraft": "VectorCraft",
+      "ai.storyteller.designcraft": "DesignCraft",
+      "ai.storyteller.effectcraft": "EffectCraft",
+      "ai.storyteller.figcraft": "FigCraft",
+      "ai.storyteller.cadcraft": "CADCraft"
+    }
+    if (craftId) return craftNames[craftId]
     var nativeNames = {
       "ai.storyteller.artcraft-launcher": "ArtCraft Launcher",
+      "artcraft-launcher": "ArtCraft Launcher",
       "ai.storyteller.photocraft": "PhotoCraft",
       "ai.storyteller.filmcraft": "FilmCraft",
       "ai.storyteller.lightcraft": "LightCraft",
@@ -353,8 +373,17 @@ Item {
 
   function open(payloadJson) {
     scratchpadTargetPending = false
+    pointerGate.reset()
     var reverse = false
-    try { reverse = Boolean(JSON.parse(payloadJson || "{}").reverse) } catch (e) {}
+    var preserveActive = false
+    var activateOnAltRelease = false
+    try {
+      var payload = JSON.parse(payloadJson || "{}")
+      reverse = Boolean(payload.reverse)
+      preserveActive = Boolean(payload.preserveActive)
+      activateOnAltRelease = Boolean(payload.activateOnAltRelease)
+    } catch (e) {}
+    root.activateOnAltRelease = activateOnAltRelease
     messageMode = false
     messageText = ""
     rebuildModel()
@@ -366,11 +395,12 @@ Item {
       }
     }
     if (windowModel.count > 0) {
-      var direction = reverse ? -1 : 1
+      var direction = preserveActive ? 0 : (reverse ? -1 : 1)
       selectedIndex = activeIndex >= 0
         ? (activeIndex + direction + windowModel.count) % windowModel.count
         : (reverse ? windowModel.count - 1 : 0)
     }
+    setOverviewCapsLockMode(true)
     opened = true
     Qt.callLater(function() {
       keyCatcher.forceActiveFocus()
@@ -381,11 +411,13 @@ Item {
   function close() {
     opened = false
     scratchpadTargetPending = false
+    activateOnAltRelease = false
   }
 
   function dismiss() {
     opened = false
     scratchpadTargetPending = false
+    activateOnAltRelease = false
     if (shell && typeof shell.hide === "function")
       shell.hide((manifest && manifest.id) || root.pluginId)
   }
@@ -393,6 +425,23 @@ Item {
   function toggle(payloadJson) {
     if (opened) dismiss()
     else open(payloadJson || "{}")
+  }
+
+  function togglePreservingActive() {
+    if (opened) dismiss()
+    else open(JSON.stringify({ preserveActive: true }))
+    return "ok"
+  }
+
+  function closeIfOpen() {
+    if (opened) dismiss()
+    return "ok"
+  }
+
+  function activateIfOpen() {
+    if (opened && !messageMode && windowModel.count > 0)
+      activate(selectedIndex)
+    return "ok"
   }
 
   function showScratchpadEmpty() {
@@ -476,15 +525,24 @@ Item {
     var reverse = String(direction || "next") === "previous"
     if (!opened) {
       scratchpadTargetPending = false
-      open(JSON.stringify({ reverse: reverse }))
+      open(JSON.stringify({ reverse: reverse, activateOnAltRelease: true }))
     } else if (messageMode) {
-      open(JSON.stringify({ reverse: reverse }))
+      open(JSON.stringify({ reverse: reverse, activateOnAltRelease: true }))
       // open() resets the regular overview state; retain this one bit of
       // context for the activation that follows from the empty hint.
       scratchpadTargetPending = true
     }
     else if (windowModel.count === 0) dismiss()
-    else select(reverse ? -1 : 1)
+    else {
+      select(reverse ? -1 : 1)
+      activateOnAltRelease = true
+    }
+    return "ok"
+  }
+
+  function cycleAltTab(direction) {
+    cycle(direction)
+    if (opened) activateOnAltRelease = true
     return "ok"
   }
 
@@ -492,6 +550,11 @@ Item {
     if (windowModel.count === 0) return
     selectedIndex = (selectedIndex + delta + windowModel.count) % windowModel.count
     grid.positionViewAtIndex(selectedIndex, GridView.Contain)
+  }
+
+  function selectFromPointer(index, item, mouse) {
+    if (!pointerGate.moved(item, mouse)) return
+    selectedIndex = index
   }
 
   function activate(index) {
@@ -520,6 +583,11 @@ Item {
   }
 
   ListModel { id: windowModel }
+
+  PointerMoveGate {
+    id: pointerGate
+    referenceItem: pointerPlane
+  }
 
   Connections {
     target: Hyprland.toplevels
@@ -560,7 +628,14 @@ Item {
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     Rectangle { anchors.fill: parent; color: root.scrim }
-    MouseArea { anchors.fill: parent; onClicked: root.dismiss() }
+    Item { id: pointerPlane; anchors.fill: parent }
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      onEntered: pointerGate.moved(pointerPlane, { x: mouseX, y: mouseY })
+      onPositionChanged: function(mouse) { pointerGate.moved(pointerPlane, mouse) }
+      onClicked: root.dismiss()
+    }
 
     BorderSurface {
       id: surface
@@ -576,7 +651,13 @@ Item {
       borderSpec: root.borderSpec
       padding: root.contentMargin
 
-      MouseArea { anchors.fill: parent; onClicked: {} }
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        onEntered: pointerGate.moved(surface, { x: mouseX, y: mouseY })
+        onPositionChanged: function(mouse) { pointerGate.moved(surface, mouse) }
+        onClicked: {}
+      }
 
       Item {
         id: keyCatcher
@@ -586,7 +667,8 @@ Item {
         Keys.priority: Keys.BeforeItem
         Keys.onReleased: function(event) {
           if (!root.messageMode && (event.key === Qt.Key_Alt || event.key === Qt.Key_AltGr)) {
-            root.activate(root.selectedIndex)
+            if (root.activateOnAltRelease) root.activate(root.selectedIndex)
+            root.activateOnAltRelease = false
             event.accepted = true
           }
         }
@@ -597,6 +679,8 @@ Item {
             return
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
             root.activate(root.selectedIndex)
+          } else if (event.key === Qt.Key_F13) {
+            root.select(-1)
           } else if (event.key === Qt.Key_Tab) {
             root.select((event.modifiers & Qt.ShiftModifier) ? -1 : 1)
           } else if (event.key === Qt.Key_Left) {
@@ -681,111 +765,209 @@ Item {
               radius: Style.cornerRadius
               color: index === root.selectedIndex ? root.selectedBackground : "transparent"
 
-              RowLayout {
+              ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: Style.spacing.md
                 spacing: Style.spacing.md
 
-                Item {
-                  Layout.preferredWidth: Style.space(36)
-                  Layout.preferredHeight: Style.space(36)
+                Rectangle {
+                  Layout.fillWidth: true
+                  Layout.fillHeight: true
+                  Layout.minimumHeight: Style.space(112)
+                  radius: Style.cornerRadius - Style.space(2)
+                  color: root.background
+                  clip: true
 
-                  Image {
-                    anchors.centerIn: parent
-                    width: Style.font.iconLarge
-                    height: Style.font.iconLarge
-                    fillMode: Image.PreserveAspectFit
-                    sourceSize.width: width * Screen.devicePixelRatio
-                    sourceSize.height: height * Screen.devicePixelRatio
-                    smooth: true
-                    source: root.desktopIconForApp(tile.appId)
-                    visible: webIcon.status !== Image.Ready
-                      && craftIcon.status !== Image.Ready
-                      && craftHicolorIcon.status !== Image.Ready
+                  ScreencopyView {
+                    id: preview
+                    anchors.fill: parent
+                    captureSource: tile.windowObject
+                    live: false
+                    onCaptureSourceChanged: Qt.callLater(function() { preview.captureFrame() })
                   }
 
-                  Image {
-                    id: webIcon
+                  Item {
                     anchors.centerIn: parent
-                    width: Style.font.iconLarge
-                    height: Style.font.iconLarge
-                    fillMode: Image.PreserveAspectFit
-                    sourceSize.width: width * Screen.devicePixelRatio
-                    sourceSize.height: height * Screen.devicePixelRatio
-                    asynchronous: true
-                    cache: true
-                    smooth: true
-                    source: root.webIconForApp(tile.appId)
-                    visible: status === Image.Ready
-                  }
+                    width: Style.space(36)
+                    height: Style.space(36)
+                    visible: !preview.hasContent
 
-                  Image {
-                    id: craftIcon
-                    anchors.centerIn: parent
-                    width: Style.font.iconLarge
-                    height: Style.font.iconLarge
-                    fillMode: Image.PreserveAspectFit
-                    sourceSize.width: width * Screen.devicePixelRatio
-                    sourceSize.height: height * Screen.devicePixelRatio
-                    asynchronous: true
-                    cache: true
-                    smooth: true
-                    source: root.craftFlatpakIconForApp(tile.appId)
-                    visible: status === Image.Ready
-                  }
+                    Image {
+                      anchors.centerIn: parent
+                      width: Style.font.iconLarge
+                      height: Style.font.iconLarge
+                      fillMode: Image.PreserveAspectFit
+                      sourceSize.width: width * Screen.devicePixelRatio
+                      sourceSize.height: height * Screen.devicePixelRatio
+                      smooth: true
+                      source: root.desktopIconForApp(tile.appId)
+                      visible: webIcon.status !== Image.Ready
+                        && craftThemeIcon.status !== Image.Ready
+                        && craftFlatpakIcon.status !== Image.Ready
+                    }
 
-                  Image {
-                    id: craftHicolorIcon
-                    anchors.centerIn: parent
-                    width: Style.font.iconLarge
-                    height: Style.font.iconLarge
-                    fillMode: Image.PreserveAspectFit
-                    sourceSize.width: width * Screen.devicePixelRatio
-                    sourceSize.height: height * Screen.devicePixelRatio
-                    asynchronous: true
-                    cache: true
-                    smooth: true
-                    source: root.craftThemeIconForApp(tile.appId)
-                    visible: status === Image.Ready
+                    Image {
+                      id: webIcon
+                      anchors.centerIn: parent
+                      width: Style.font.iconLarge
+                      height: Style.font.iconLarge
+                      fillMode: Image.PreserveAspectFit
+                      sourceSize.width: width * Screen.devicePixelRatio
+                      sourceSize.height: height * Screen.devicePixelRatio
+                      asynchronous: true
+                      cache: true
+                      smooth: true
+                      source: root.webIconForApp(tile.appId)
+                      visible: status === Image.Ready
+                    }
+
+                    Image {
+                      id: craftThemeIcon
+                      anchors.centerIn: parent
+                      width: Style.font.iconLarge
+                      height: Style.font.iconLarge
+                      fillMode: Image.PreserveAspectFit
+                      sourceSize.width: width * Screen.devicePixelRatio
+                      sourceSize.height: height * Screen.devicePixelRatio
+                      asynchronous: true
+                      cache: true
+                      smooth: true
+                      source: root.craftThemeIconForApp(tile.appId)
+                      visible: status === Image.Ready
+                    }
+
+                    Image {
+                      id: craftFlatpakIcon
+                      anchors.centerIn: parent
+                      width: Style.font.iconLarge
+                      height: Style.font.iconLarge
+                      fillMode: Image.PreserveAspectFit
+                      sourceSize.width: width * Screen.devicePixelRatio
+                      sourceSize.height: height * Screen.devicePixelRatio
+                      asynchronous: true
+                      cache: true
+                      smooth: true
+                      source: root.craftFlatpakIconForApp(tile.appId)
+                      visible: status === Image.Ready && craftThemeIcon.status !== Image.Ready
+                    }
                   }
                 }
 
-                ColumnLayout {
+                RowLayout {
                   Layout.fillWidth: true
-                  spacing: Style.spacing.xs
+                  spacing: Style.spacing.md
 
-                  Text {
-                    Layout.fillWidth: true
-                    text: tile.title
-                    textFormat: Text.PlainText
-                    color: tile.index === root.selectedIndex ? root.selectedText : root.foreground
-                    font.family: Style.font.menuFamily
-                    font.pixelSize: Style.font.title
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                    wrapMode: Text.NoWrap
+                  Item {
+                    Layout.preferredWidth: Style.space(28)
+                    Layout.preferredHeight: Style.space(28)
+
+                    Image {
+                      anchors.centerIn: parent
+                      width: Style.space(22)
+                      height: Style.space(22)
+                      fillMode: Image.PreserveAspectFit
+                      sourceSize.width: width * Screen.devicePixelRatio
+                      sourceSize.height: height * Screen.devicePixelRatio
+                      smooth: true
+                      source: root.desktopIconForApp(tile.appId)
+                      visible: footerWebIcon.status !== Image.Ready
+                        && footerCraftThemeIcon.status !== Image.Ready
+                        && footerCraftFlatpakIcon.status !== Image.Ready
+                    }
+
+                    Image {
+                      id: footerWebIcon
+                      anchors.centerIn: parent
+                      width: Style.space(22)
+                      height: Style.space(22)
+                      fillMode: Image.PreserveAspectFit
+                      sourceSize.width: width * Screen.devicePixelRatio
+                      sourceSize.height: height * Screen.devicePixelRatio
+                      asynchronous: true
+                      cache: true
+                      smooth: true
+                      source: root.webIconForApp(tile.appId)
+                      visible: status === Image.Ready
+                    }
+
+                    Image {
+                      id: footerCraftThemeIcon
+                      anchors.centerIn: parent
+                      width: Style.space(22)
+                      height: Style.space(22)
+                      fillMode: Image.PreserveAspectFit
+                      sourceSize.width: width * Screen.devicePixelRatio
+                      sourceSize.height: height * Screen.devicePixelRatio
+                      asynchronous: true
+                      cache: true
+                      smooth: true
+                      source: root.craftThemeIconForApp(tile.appId)
+                      visible: status === Image.Ready
+                    }
+
+                    Image {
+                      id: footerCraftFlatpakIcon
+                      anchors.centerIn: parent
+                      width: Style.space(22)
+                      height: Style.space(22)
+                      fillMode: Image.PreserveAspectFit
+                      sourceSize.width: width * Screen.devicePixelRatio
+                      sourceSize.height: height * Screen.devicePixelRatio
+                      asynchronous: true
+                      cache: true
+                      smooth: true
+                      source: root.craftFlatpakIconForApp(tile.appId)
+                      visible: status === Image.Ready && footerCraftThemeIcon.status !== Image.Ready
+                    }
                   }
 
-                  Text {
+                  ColumnLayout {
                     Layout.fillWidth: true
-                    text: tile.appName + "  ·  Workspace " + tile.workspace
-                    textFormat: Text.PlainText
-                    visible: text !== ""
-                    color: tile.index === root.selectedIndex ? root.selectedText : root.foreground
-                    opacity: 0.65
-                    font.family: Style.font.menuFamily
-                    font.pixelSize: Style.font.caption
-                    elide: Text.ElideRight
+                    spacing: Style.spacing.xs
+
+                    Text {
+                      Layout.fillWidth: true
+                      text: tile.title
+                      textFormat: Text.PlainText
+                      color: tile.index === root.selectedIndex ? root.selectedText : root.foreground
+                      font.family: Style.font.menuFamily
+                      font.pixelSize: Style.font.title
+                      elide: Text.ElideRight
+                      maximumLineCount: 1
+                      wrapMode: Text.NoWrap
+                    }
+
+                    Text {
+                      Layout.fillWidth: true
+                      text: tile.appName + "  ·  Workspace " + tile.workspace
+                      textFormat: Text.PlainText
+                      visible: text !== ""
+                      color: tile.index === root.selectedIndex ? root.selectedText : root.foreground
+                      opacity: 0.65
+                      font.family: Style.font.menuFamily
+                      font.pixelSize: Style.font.caption
+                      elide: Text.ElideRight
+                    }
                   }
                 }
               }
 
               MouseArea {
+                id: tileMouseArea
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onEntered: root.selectedIndex = tile.index
-                onClicked: root.activate(tile.index)
+                onEntered: root.selectFromPointer(tile.index, tile, {
+                  x: tileMouseArea.mouseX,
+                  y: tileMouseArea.mouseY
+                })
+                onPositionChanged: function(mouse) {
+                  root.selectFromPointer(tile.index, tile, mouse)
+                }
+                onClicked: {
+                  root.selectedIndex = tile.index
+                  root.activate(tile.index)
+                }
               }
             }
 

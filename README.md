@@ -7,15 +7,15 @@ Windows Alt-Tab switcher and built directly for the Omarchy Quattro shell.
 
 ## Features
 
-- Shows windows from all regular workspaces in a responsive grid.
+- Shows captured window previews from all regular workspaces in a responsive grid.
 - Selects the next window on the first `Alt+Tab` press.
 - Cycles while Alt is held and activates on Alt release.
 - Supports arrow keys, `Shift+Tab`, Enter, Space, Escape, and the mouse.
 - Uses Omarchy's current popup and menu colors automatically.
 - Resolves icons through the desktop entry database and local web-app icons
   without making network requests; GitHub reuses the icon from the Apps menu.
-- Maps ArtCraft app IDs and window classes to their AppImage hicolor icons, with
-  Flatpak-export icons supported as a fallback; the launcher uses its own icon too.
+- Maps ArtCraft app IDs and window classes to local AppImage hicolor icons, with
+  Flatpak-export icons as a fallback; the launcher uses its own icon too.
 - Codex CLI windows (`org.openai.codex`) use the `kitty` name and icon while
   retaining their dedicated app ID for launch/focus shortcuts.
 
@@ -81,6 +81,18 @@ hyprctl configerrors
 - With no windows open, release Alt, press Escape, or repeat either overview
   shortcut to close the empty state.
 - Use the arrow keys or mouse when the overview is open.
+- Double-tap either Super key to open the clickable overview; the two releases must
+  be within 350 ms. One Super tap activates the selected window in an open overview.
+- Opening with Double Super keeps the currently focused window selected; opening
+  through `Alt+Tab` continues to select the next window.
+- While the overview is open, Tab moves the selection forward and CapsLock moves
+  it backward without changing the CapsLock state. Shift+Tab also moves backward.
+  Activate the selection with Enter or a click. When the overview is cycled with
+  Alt+Tab or Alt+CapsLock, releasing Alt activates the selection. Bare CapsLock
+  only moves the selection backward and leaves the Double Super overview open;
+  Alt alone does nothing there.
+- Moving the mouse selects the hovered window. A stationary pointer does not change
+  the focused-window selection when the overview first opens.
 - The user `Super+Shift+Arrow` binding swaps with a visible neighbour on the
   same monitor first. A swap involving fullscreen exits fullscreen on both
   windows; when no local neighbour exists, it can swap across monitors.
